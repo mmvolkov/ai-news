@@ -1,0 +1,4 @@
+anthropic>=1.11
+pydantic>=2.7
+yt-dlp>=2026.8.19
+pytest>=8
