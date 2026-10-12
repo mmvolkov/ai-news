@@ -97,3 +97,25 @@ def test_fetch_google(monkeypatch):
     src = google_api.fetch_google("https://youtu.be/rc1MGVebM-4")
     assert (src.title, src.upload_date, src.description) == ("AI-новости", "20261004", "https://example.com")
     assert src.transcript == [(5, "Первая новость"), (40, "Вторая")]
+
+
+def test_gemini_retries_and_falls_back(monkeypatch):
+    import io
+    import urllib.error
+
+    from ai_news import google_api
+
+    calls = []
+
+    def fake_urlopen(req, timeout):
+        calls.append(req.full_url)
+        if len(calls) == 1:  # первая модель перегружена: 503, после повтора — пустой ответ
+            raise urllib.error.HTTPError(req.full_url, 503, "busy", {}, io.BytesIO(b'{"error": "high demand"}'))
+        text = "" if "3.8" in req.full_url else "[00:05] Привет"
+        payload = {"candidates": [{"finishReason": "STOP", "content": {"parts": [{"text": text}]}}]}
+        return io.BytesIO(google_api.json.dumps(payload).encode())
+
+    monkeypatch.setattr(google_api.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(google_api.time, "sleep", lambda _: None)
+    assert google_api.gemini_transcript("x", "k", ["gemini-3.8-flash", "gemini-3.6-flash"]) == [(5, "Привет")]
+    assert [u.split("/")[-1] for u in calls] == ["gemini-3.8-flash:generateContent"] * 2 + ["gemini-3.6-flash:generateContent"]

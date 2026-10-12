@@ -74,7 +74,8 @@ python -m ai_news https://youtu.be/rc1MGVebM-4 --from-json issues/20261004_rc1MG
 
 ## Как устроено
 
-- `ai_news/google_api.py` — транскрипт через Gemini (модель `GEMINI_MODEL`, по умолчанию `gemini-3.8-flash`)
+- `ai_news/google_api.py` — транскрипт через Gemini (модели `GEMINI_MODEL` через запятую, по умолчанию `gemini-3.8-flash,gemini-3.6-flash`;
+  при 429/5xx — повторы с паузами, при сбое — следующая модель)
   и метаданные через YouTube Data API; используется, если задан `GEMINI_API_KEY`.
 - `ai_news/fetch.py` — загрузка названия, описания, глав и субтитров (yt-dlp) или чтение локального
   транскрипта (`.vtt`, `.srt`, `.json3`, `.txt` с таймкодами `12:34`).
