@@ -1,11 +1,17 @@
-"""Рилс 9:16 через Veo (Gemini API): клипы по 8 с из issue.video_clips, склейка и текст поверх кадра — ffmpeg.
+"""Рилс 9:16 через Veo: клипы по 8 с из issue.video_clips, склейка и текст поверх кадра — ffmpeg.
 
-Veo в Gemini API платный, бесплатного тарифа нет: ключ нужен из проекта Google Cloud с подключённой оплатой
-(VEO_API_KEY; если не задан — GEMINI_API_KEY). Модель — VEO_MODEL, по умолчанию veo-3.1-fast-generate-preview
-(≈ $0,10 за секунду 720p, рилс из 4 клипов — около $3).
+Два способа получить клипы:
+- FLOW2API_URL задан — через свой сервер Flow2API (неофициальная обёртка над Google Flow на кредитах
+  аккаунта Flow, github.com/TheSmallHanCat/flow2api). Ключ — FLOW2API_KEY, модель — FLOW2API_MODEL
+  (по умолчанию veo-3.1-lite-8s-portrait, 10 кредитов Flow за клип);
+- иначе — официальный Gemini API. Он платный, бесплатного тарифа нет: ключ из проекта Google Cloud
+  с подключённой оплатой (VEO_API_KEY, если не задан — GEMINI_API_KEY). Модель — VEO_MODEL,
+  по умолчанию veo-3.1-fast-generate-preview (≈ $0,10 за секунду 720p, рилс из 4 клипов — около $3).
 """
 
+import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -13,6 +19,7 @@ import tempfile
 import textwrap
 import time
 import urllib.request
+from functools import partial
 from pathlib import Path
 
 from .google_api import _request
@@ -22,6 +29,7 @@ BASE = "https://generativelanguage.googleapis.com/v1beta"
 VEO_MODEL = os.environ.get("VEO_MODEL", "veo-3.1-fast-generate-preview")
 FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 CLIP_SEC = 8
+FLOW2API_MODEL = os.environ.get("FLOW2API_MODEL", "veo-3.1-lite-8s-portrait")
 
 
 def generate_clip(prompt: str, key: str, model: str = VEO_MODEL, timeout: int = 900) -> bytes:
@@ -44,6 +52,36 @@ def generate_clip(prompt: str, key: str, model: str = VEO_MODEL, timeout: int = 
         raise RuntimeError(f"Veo не вернул видео: {result}")
     req = urllib.request.Request(samples[0]["video"]["uri"], headers={"x-goog-api-key": key})
     with urllib.request.urlopen(req, timeout=300) as resp:
+        return resp.read()
+
+
+def generate_clip_flow2api(prompt: str, base_url: str, key: str, model: str = FLOW2API_MODEL,
+                           timeout: int = 900) -> bytes:
+    """Flow2API отвечает потоком OpenAI chat.completion.chunk: ход генерации — в reasoning_content,
+    итог — в content с тегом <video src='…'>."""
+    base_url = base_url.rstrip("/")
+    req = urllib.request.Request(
+        f"{base_url}/v1/chat/completions",
+        data=json.dumps({"model": model, "stream": True,
+                         "messages": [{"role": "user", "content": prompt}]}).encode("utf-8"),
+        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+    )
+    content = ""
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        for raw in resp:
+            line = raw.decode("utf-8", "replace").strip()
+            if not line.startswith("data:") or line == "data: [DONE]":
+                continue
+            chunk = json.loads(line[5:])
+            if "error" in chunk:
+                raise RuntimeError(f"Flow2API: {chunk['error']}")
+            for choice in chunk.get("choices", []):
+                content += choice.get("delta", {}).get("content") or ""
+    m = re.findall(r"<video[^>]*\ssrc=['\"]([^'\"]+)", content)
+    if not m:
+        raise RuntimeError(f"Flow2API не вернул видео: {content[-1000:]}")
+    url = m[-1] if m[-1].startswith("http") else f"{base_url}/{m[-1].lstrip('/')}"
+    with urllib.request.urlopen(url, timeout=300) as resp:
         return resp.read()
 
 
@@ -87,7 +125,12 @@ def assemble_reel(clips: list[Path], texts: list[str], out: Path) -> None:
 def make_reel(clips: list[VideoClip], out_dir: Path) -> Path:
     if not clips:
         raise RuntimeError("В выпуске нет video_clips — пересоберите его без --from-json")
-    key = os.environ.get("VEO_API_KEY") or os.environ["GEMINI_API_KEY"]
+    if os.environ.get("FLOW2API_URL"):
+        url, key = os.environ["FLOW2API_URL"], os.environ.get("FLOW2API_KEY", "")
+        generate = partial(generate_clip_flow2api, base_url=url, key=key)
+    else:
+        key = os.environ.get("VEO_API_KEY") or os.environ["GEMINI_API_KEY"]
+        generate = partial(generate_clip, key=key)
     clip_dir = out_dir / "clips"
     clip_dir.mkdir(parents=True, exist_ok=True)
     paths = []
@@ -95,7 +138,7 @@ def make_reel(clips: list[VideoClip], out_dir: Path) -> Path:
         path = clip_dir / f"clip{i}.mp4"
         if not path.exists():  # уже оплаченные клипы при повторном запуске не генерируем заново
             print(f"Veo: клип {i}/{len(clips)}…", file=sys.stderr)
-            path.write_bytes(generate_clip(clip.prompt, key))
+            path.write_bytes(generate(clip.prompt))
         paths.append(path)
     reel = out_dir / "reels.mp4"
     assemble_reel(paths, [c.on_screen_text for c in clips], reel)
