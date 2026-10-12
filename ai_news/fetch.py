@@ -1,4 +1,7 @@
-"""Загрузка метаданных и транскрипта YouTube-ролика (yt-dlp) или из локального файла."""
+"""Загрузка метаданных и транскрипта YouTube-ролика (yt-dlp) или из локального файла.
+
+На серверах YouTube блокирует yt-dlp — там используйте ai_news.google_api (Gemini + YouTube Data API).
+"""
 
 import json
 import os
@@ -91,9 +94,15 @@ def load_transcript_file(path: Path) -> list[tuple[int, str]]:
         return parse_vtt_or_srt(raw)
     if path.suffix in (".json", ".json3"):
         return parse_json3(json.loads(raw))
+    return parse_timestamped_text(raw)
+
+
+def parse_timestamped_text(raw: str) -> list[tuple[int, str]]:
+    """Текст со строками «12:34 текст» или «[1:02:03] текст»; строки без таймкода дописываются к предыдущей."""
     cues = []
     for line in raw.splitlines():
-        m = re.match(r"\s*\[?(?:(\d+):)?(\d{1,2}):(\d{2})\]?\s*(.*)", line)
+        line = line.strip().lstrip("*-• ").replace("**", "")
+        m = re.match(r"\[?(?:(\d+):)?(\d{1,2}):(\d{2})\]?\s*(.*)", line)
         if m:
             sec = int(m.group(1) or 0) * 3600 + int(m.group(2)) * 60 + int(m.group(3))
             cues.append((sec, m.group(4)))

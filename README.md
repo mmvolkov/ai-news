@@ -34,10 +34,16 @@ Workflow `.github/workflows/ai-news.yml` запускается вручную: 
 
 - `CLAUDE_CODE_OAUTH_TOKEN` — токен подписки: выполните `claude setup-token` у себя на компьютере
   и вставьте выведенный токен (действует год);
+- `GEMINI_API_KEY` — ключ Gemini API ([aistudio.google.com/apikey](https://aistudio.google.com/apikey),
+  бесплатный тариф): Gemini сам открывает ролик по ссылке и делает транскрипт с таймкодами;
+- `YOUTUBE_API_KEY` — ключ YouTube Data API v3 из того же проекта Google Cloud: название, дата и описание
+  ролика со ссылками на источники;
 - `ELEVENLABS_API_KEY` — ключ ElevenLabs для озвучки.
-- `YOUTUBE_COOKIES` — содержимое `cookies.txt` с youtube.com (экспорт из браузера, лучше с отдельного
-  Google-аккаунта): с серверов GitHub YouTube отвечает «Sign in to confirm you're not a bot».
-  Локально то же самое — `YTDLP_COOKIES=путь/к/cookies.txt`.
+
+С серверов GitHub YouTube отвечает yt-dlp «Sign in to confirm you're not a bot», поэтому при заданном
+`GEMINI_API_KEY` ролик загружается через Google (`ai_news/google_api.py`), а не через yt-dlp. Запасной
+вариант для yt-dlp — секрет `YOUTUBE_COOKIES` с содержимым `cookies.txt` с youtube.com
+(локально — `YTDLP_COOKIES=путь/к/cookies.txt`).
 
 ## Запуск
 
@@ -68,6 +74,8 @@ python -m ai_news https://youtu.be/rc1MGVebM-4 --from-json issues/20261004_rc1MG
 
 ## Как устроено
 
+- `ai_news/google_api.py` — транскрипт через Gemini (модель `GEMINI_MODEL`, по умолчанию `gemini-3.8-flash`)
+  и метаданные через YouTube Data API; используется, если задан `GEMINI_API_KEY`.
 - `ai_news/fetch.py` — загрузка названия, описания, глав и субтитров (yt-dlp) или чтение локального
   транскрипта (`.vtt`, `.srt`, `.json3`, `.txt` с таймкодами `12:34`).
 - `prompts/system_prompt.md` — редакционная инструкция: правила дайджеста, обложки, сценария и видеопромпта.
