@@ -46,3 +46,27 @@ def test_parsers():
     assert video_id_from_url("https://www.youtube.com/watch?v=rc1MGVebM-4&t=5") == "rc1MGVebM-4"
     vtt = "WEBVTT\n\n00:00:01.000 --> 00:00:03.000\nпривет\n\n00:01:05.000 --> 00:01:07.000\n<c>мир</c>\n"
     assert parse_vtt_or_srt(vtt) == [(1, "привет"), (65, "мир")]
+
+
+def test_generate_via_claude_cli(monkeypatch):
+    import json
+    import subprocess
+
+    from ai_news import generate
+
+    issue = make_issue(2)
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append((cmd, kw))
+        out = {"type": "result", "is_error": False, "structured_output": issue.model_dump()}
+        return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps(out), stderr="")
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(generate.shutil, "which", lambda _: "/usr/bin/claude")
+    monkeypatch.setattr(generate.subprocess, "run", fake_run)
+    src = Source(video_id="x", url="https://youtu.be/x", transcript=[(5, "привет")])
+    assert generate.generate_issue(src) == issue
+    cmd, kw = calls[0]
+    assert cmd[:2] == ["/usr/bin/claude", "-p"] and "--json-schema" in cmd
+    assert "привет" in kw["input"]

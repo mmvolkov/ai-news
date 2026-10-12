@@ -19,8 +19,22 @@
 
 ```bash
 pip install -r requirements.txt
-export ANTHROPIC_API_KEY=...   # или `ant auth login`
+npm install -g @anthropic-ai/claude-code   # Claude Code — через него идут запросы по подписке
+claude login                               # вход с подпиской Claude Pro/Max
 ```
+
+Без подписки можно работать через Claude API: `export ANTHROPIC_API_KEY=...` — если переменная задана,
+пайплайн обращается к API напрямую, а не к `claude`.
+
+### GitHub Actions
+
+Workflow `.github/workflows/ai-news.yml` запускается вручную: **Actions → AI-новости → Run workflow**,
+готовые материалы — в артефакте `issue` на странице запуска. Секреты репозитория
+(**Settings → Secrets and variables → Actions**):
+
+- `CLAUDE_CODE_OAUTH_TOKEN` — токен подписки: выполните `claude setup-token` у себя на компьютере
+  и вставьте выведенный токен (действует год);
+- `ELEVENLABS_API_KEY` — ключ ElevenLabs для озвучки.
 
 ## Запуск
 
@@ -56,7 +70,8 @@ python -m ai_news https://youtu.be/rc1MGVebM-4 --from-json issues/20261004_rc1MG
 - `prompts/system_prompt.md` — редакционная инструкция: правила дайджеста, обложки, сценария и видеопромпта.
   Меняйте стиль канала здесь.
 - `ai_news/generate.py` — запрос к Claude (`claude-opus-5-5`) со структурированным выводом по схеме
-  `ai_news/schema.py`. Включён серверный fallback: если запрос отклонит классификатор безопасности,
+  `ai_news/schema.py`: через `claude -p --json-schema` (подписка) или, при заданном `ANTHROPIC_API_KEY`,
+  через Claude API с серверным fallback — если запрос отклонит классификатор безопасности,
   API повторит его на рекомендованной модели.
 - `ai_news/render.py` — сборка HTML-подписи Telegram с подсчётом видимой длины (в UTF-16, как считает
   Telegram) и `materials.md`.
