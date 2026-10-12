@@ -119,3 +119,31 @@ def test_gemini_retries_and_falls_back(monkeypatch):
     monkeypatch.setattr(google_api.time, "sleep", lambda _: None)
     assert google_api.gemini_transcript("x", "k", ["gemini-3.8-flash", "gemini-3.6-flash"]) == [(5, "Привет")]
     assert [u.split("/")[-1] for u in calls] == ["gemini-3.8-flash:generateContent"] * 2 + ["gemini-3.6-flash:generateContent"]
+
+
+def test_veo_generate_clip_polls_and_downloads(monkeypatch):
+    import io
+
+    from ai_news import veo
+
+    requests = []
+
+    def fake_request(url, key, body=None, timeout=60):
+        requests.append((url, body))
+        if body is not None:
+            assert body["parameters"] == {"aspectRatio": "9:16", "durationSeconds": 8, "resolution": "720p"}
+            return {"name": "models/veo/operations/op1"}
+        if len(requests) == 2:
+            return {"name": "models/veo/operations/op1", "done": False}
+        return {"done": True, "response": {"generateVideoResponse": {
+            "generatedSamples": [{"video": {"uri": "https://example.com/v.mp4"}}]}}}
+
+    def fake_urlopen(req, timeout):
+        assert req.full_url == "https://example.com/v.mp4" and req.get_header("X-goog-api-key") == "k"
+        return io.BytesIO(b"mp4")
+
+    monkeypatch.setattr(veo, "_request", fake_request)
+    monkeypatch.setattr(veo.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(veo.time, "sleep", lambda _: None)
+    assert veo.generate_clip("a cat", "k") == b"mp4"
+    assert requests[1][0].endswith("/v1beta/models/veo/operations/op1") and len(requests) == 3

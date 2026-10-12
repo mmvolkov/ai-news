@@ -30,6 +30,11 @@ class Reels(BaseModel):
     caption: str
 
 
+class VideoClip(BaseModel):
+    prompt: str = Field(description="Самостоятельный промпт на английском для одного 8-секундного клипа Veo 9:16")
+    on_screen_text: str = Field(description="Текст поверх клипа по-русски, до 40 символов, без эмодзи")
+
+
 class Issue(BaseModel):
     digest: Digest
     image_prompt: str
@@ -37,3 +42,5 @@ class Issue(BaseModel):
     reels: Reels
     video_prompt: str
     voiceover_full: str
+    # Пусто в выпусках, собранных до появления генерации рилса через Veo
+    video_clips: list[VideoClip] = Field(default_factory=list)

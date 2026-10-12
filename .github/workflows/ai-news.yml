@@ -5,6 +5,10 @@ on:
       url:
         description: "Ссылка на выпуск YouTube"
         required: true
+      reels:
+        description: "Сгенерировать рилс 9:16 через Veo (платно, ≈ $3 за ролик)"
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -16,13 +20,15 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements.txt
       - run: npm install -g @anthropic-ai/claude-code
+      - if: ${{ inputs.reels }}
+        run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg fonts-dejavu-core
       - run: |
           # YouTube блокирует серверы GitHub без входа: cookies.txt берём из секрета, если он задан
           if [ -n "$YOUTUBE_COOKIES" ]; then
             printf '%s\n' "$YOUTUBE_COOKIES" > "$RUNNER_TEMP/cookies.txt"
             export YTDLP_COOKIES="$RUNNER_TEMP/cookies.txt"
           fi
-          python -m ai_news "$VIDEO_URL"
+          python -m ai_news "$VIDEO_URL" ${{ inputs.reels && '--reels' || '' }}
         env:
           VIDEO_URL: ${{ inputs.url }}
           # Ролик через Google: транскрипт — Gemini, название и описание — YouTube Data API
@@ -31,6 +37,8 @@ jobs:
           YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
           # Подписка Claude Pro/Max: токен из `claude setup-token`
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Veo платный: ключ из проекта Google Cloud с оплатой (без него — GEMINI_API_KEY)
+          VEO_API_KEY: ${{ secrets.VEO_API_KEY }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
       - uses: actions/upload-artifact@v4
         with:
