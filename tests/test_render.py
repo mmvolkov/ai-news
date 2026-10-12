@@ -70,3 +70,30 @@ def test_generate_via_claude_cli(monkeypatch):
     cmd, kw = calls[0]
     assert cmd[:2] == ["/usr/bin/claude", "-p"] and "--json-schema" in cmd
     assert "привет" in kw["input"]
+
+
+def test_parse_timestamped_text():
+    from ai_news.fetch import parse_timestamped_text
+
+    raw = "Вот расшифровка:\n**[00:05]** Привет\n[1:02:03] Позже\nпродолжение"
+    assert parse_timestamped_text(raw) == [(0, "Вот расшифровка: Привет"), (3723, "Позже продолжение")]
+
+
+def test_fetch_google(monkeypatch):
+    from ai_news import google_api
+
+    def fake_request(url, key, body=None, timeout=60):
+        if "youtube/v3" in url:
+            assert key == "yt-key"
+            return {"items": [{"snippet": {"title": "AI-новости", "description": "https://example.com",
+                                           "publishedAt": "2026-10-04T10:00:00Z"}}]}
+        assert key == "gem-key" and "rc1MGVebM-4" in body["contents"][0]["parts"][0]["file_data"]["file_uri"]
+        return {"candidates": [{"finishReason": "STOP", "content": {"parts": [
+            {"text": "думаю", "thought": True}, {"text": "[00:05] Первая новость\n[00:40] Вторая"}]}}]}
+
+    monkeypatch.setenv("GEMINI_API_KEY", "gem-key")
+    monkeypatch.setenv("YOUTUBE_API_KEY", "yt-key")
+    monkeypatch.setattr(google_api, "_request", fake_request)
+    src = google_api.fetch_google("https://youtu.be/rc1MGVebM-4")
+    assert (src.title, src.upload_date, src.description) == ("AI-новости", "20261004", "https://example.com")
+    assert src.transcript == [(5, "Первая новость"), (40, "Вторая")]

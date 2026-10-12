@@ -25,6 +25,9 @@ jobs:
           python -m ai_news "$VIDEO_URL"
         env:
           VIDEO_URL: ${{ inputs.url }}
+          # Ролик через Google: транскрипт — Gemini, название и описание — YouTube Data API
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
           # Подписка Claude Pro/Max: токен из `claude setup-token`
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

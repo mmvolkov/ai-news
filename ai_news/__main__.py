@@ -9,6 +9,7 @@
 
 import argparse
 import json
+import os
 from datetime import date
 from pathlib import Path
 
@@ -32,6 +33,10 @@ def main() -> None:
     vid = video_id_from_url(args.url)
     if args.transcript:
         src = Source(video_id=vid, url=f"https://youtu.be/{vid}", transcript=load_transcript_file(args.transcript))
+    elif os.environ.get("GEMINI_API_KEY"):
+        from .google_api import fetch_google
+
+        src = fetch_google(args.url)
     else:
         src = fetch_youtube(args.url)
     if args.description:
