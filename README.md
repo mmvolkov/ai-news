@@ -35,6 +35,9 @@ Workflow `.github/workflows/ai-news.yml` запускается вручную: 
 - `CLAUDE_CODE_OAUTH_TOKEN` — токен подписки: выполните `claude setup-token` у себя на компьютере
   и вставьте выведенный токен (действует год);
 - `ELEVENLABS_API_KEY` — ключ ElevenLabs для озвучки.
+- `YOUTUBE_COOKIES` — содержимое `cookies.txt` с youtube.com (экспорт из браузера, лучше с отдельного
+  Google-аккаунта): с серверов GitHub YouTube отвечает «Sign in to confirm you're not a bot».
+  Локально то же самое — `YTDLP_COOKIES=путь/к/cookies.txt`.
 
 ## Запуск
 
