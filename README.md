@@ -39,6 +39,18 @@ Workflow `.github/workflows/ai-news.yml` запускается вручную: 
 - `YOUTUBE_API_KEY` — ключ YouTube Data API v3 из того же проекта Google Cloud: название, дата и описание
   ролика со ссылками на источники;
 - `ELEVENLABS_API_KEY` — ключ ElevenLabs для озвучки.
+- `VEO_API_KEY` — для рилса через Veo (см. ниже).
+
+### Рилс 9:16 через Veo
+
+Галочка **reels** при запуске workflow (локально — флаг `--reels`) генерирует 4 клипа Veo по 8 с
+по `video_clips` из выпуска, склеивает их ffmpeg в `reels.mp4` 1080×1920 и накладывает текст каждого клипа.
+Клипы сохраняются в `clips/`: при повторном запуске уже готовые не генерируются заново.
+
+**Veo в Gemini API платный, бесплатного тарифа нет.** Нужен ключ из проекта Google Cloud с подключённой
+оплатой — секрет `VEO_API_KEY` (лучше отдельный проект, чтобы транскрипт Gemini оставался бесплатным).
+Модель — `VEO_MODEL`, по умолчанию `veo-3.1-fast-generate-preview`: около $0,10 за секунду 720p,
+то есть ≈ $3 за рилс ~32 с.
 
 С серверов GitHub YouTube отвечает yt-dlp «Sign in to confirm you're not a bot», поэтому при заданном
 `GEMINI_API_KEY` ролик загружается через Google (`ai_news/google_api.py`), а не через yt-dlp. Запасной

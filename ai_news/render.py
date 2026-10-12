@@ -59,6 +59,12 @@ def telegram_caption(issue: Issue, src: Source, limit: int = CAPTION_LIMIT) -> s
 
 def materials_md(issue: Issue, src: Source, caption: str) -> str:
     r = issue.reels
+    clips = "".join(
+        f"\n**Клип {i} — «{c.on_screen_text}»**\n\n```text\n{c.prompt}\n```\n"
+        for i, c in enumerate(issue.video_clips, 1)
+    )
+    if clips:
+        clips = "\n### Клипы Veo по 8 с (рилс собирается из них флагом --reels)\n" + clips
     scenes = "\n".join(
         f"| {s.time} | {s.visual} | {s.on_screen_text} | {s.voiceover} |" for s in r.scenes
     )
@@ -108,4 +114,4 @@ def materials_md(issue: Issue, src: Source, caption: str) -> str:
 ### Полный закадровый текст (для озвучки)
 
 {issue.voiceover_full}
-"""
+{clips}"""

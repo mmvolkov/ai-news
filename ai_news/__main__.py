@@ -28,6 +28,8 @@ def main() -> None:
     p.add_argument("--out", type=Path, default=Path("issues"), help="Папка для выпусков")
     p.add_argument("--prompt-only", action="store_true", help="Только собрать prompt.md для ручной вставки в Claude/ChatGPT")
     p.add_argument("--from-json", type=Path, help="Готовый issue.json — только перерендерить материалы")
+    p.add_argument("--reels", action="store_true",
+                   help="Сгенерировать рилс 9:16 через Veo (платно, ≈ $3 за ролик) в reels.mp4")
     args = p.parse_args()
 
     vid = video_id_from_url(args.url)
@@ -67,6 +69,10 @@ def main() -> None:
     (out / "telegram_post.html").write_text(caption, encoding="utf-8")
     (out / "materials.md").write_text(materials_md(issue, src, caption), encoding="utf-8")
     print(f"Готово: {out}/ (подпись Telegram: {visible_len(caption)} симв.)")
+    if args.reels:
+        from .veo import make_reel
+
+        print(f"Рилс: {make_reel(issue.video_clips, out)}")
 
 
 if __name__ == "__main__":
