@@ -63,8 +63,8 @@ def gemini_transcript(video_id: str, key: str, model: str = GEMINI_MODEL) -> lis
     parts = cand.get("content", {}).get("parts", [])
     transcript = parse_timestamped_text("\n".join(p.get("text", "") for p in parts if not p.get("thought")))
     if not transcript:
-        raise RuntimeError(f"Gemini не вернул транскрипт: finishReason={cand.get('finishReason')}, "
-                           f"promptFeedback={data.get('promptFeedback')}")
+        # Ответ без самого текста: показываем его целиком (ключа в нём нет), иначе причину не найти
+        raise RuntimeError(f"Gemini не вернул транскрипт: {json.dumps(data, ensure_ascii=False)[:3000]}")
     if cand.get("finishReason") == "MAX_TOKENS":
         print("Внимание: транскрипт Gemini обрезан по лимиту длины ответа", file=sys.stderr)
     return transcript
