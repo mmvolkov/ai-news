@@ -1,6 +1,7 @@
 """Загрузка метаданных и транскрипта YouTube-ролика (yt-dlp) или из локального файла."""
 
 import json
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -104,7 +105,11 @@ def load_transcript_file(path: Path) -> list[tuple[int, str]]:
 def fetch_youtube(url: str) -> Source:
     import yt_dlp
 
-    with yt_dlp.YoutubeDL({"quiet": True, "skip_download": True, "no_warnings": True}) as ydl:
+    opts = {"quiet": True, "skip_download": True, "no_warnings": True}
+    # С серверов (GitHub Actions и т. п.) YouTube требует вход: cookies.txt из браузера снимает проверку на бота
+    if os.environ.get("YTDLP_COOKIES"):
+        opts["cookiefile"] = os.environ["YTDLP_COOKIES"]
+    with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=False)
         src = Source(
             video_id=info["id"],

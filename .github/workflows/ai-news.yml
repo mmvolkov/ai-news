@@ -16,9 +16,16 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements.txt
       - run: npm install -g @anthropic-ai/claude-code
-      - run: python -m ai_news "$VIDEO_URL"
+      - run: |
+          # YouTube блокирует серверы GitHub без входа: cookies.txt берём из секрета, если он задан
+          if [ -n "$YOUTUBE_COOKIES" ]; then
+            printf '%s\n' "$YOUTUBE_COOKIES" > "$RUNNER_TEMP/cookies.txt"
+            export YTDLP_COOKIES="$RUNNER_TEMP/cookies.txt"
+          fi
+          python -m ai_news "$VIDEO_URL"
         env:
           VIDEO_URL: ${{ inputs.url }}
+          YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
           # Подписка Claude Pro/Max: токен из `claude setup-token`
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
