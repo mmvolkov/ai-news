@@ -8,12 +8,16 @@ YouTube Data API v3) — без него не будет названия, да�
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 
 from .fetch import Source, parse_timestamped_text, video_id_from_url
 
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
+# Через запятую: при перегрузке или пустом ответе первой модели пробуем следующую
+GEMINI_MODELS = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash,gemini-3.6-flash").split(",")
+# Паузы перед повтором при 429/5xx: Google часто отвечает 503 «high demand» на несколько минут
+RETRY_DELAYS = (15, 45, 90)
 TRANSCRIPT_PROMPT = (
     "Сделай дословную расшифровку всей речи в этом видео на языке оригинала, от начала до конца, без пропусков, "
     "пересказа и комментариев. Формат — только строки вида:\n"
@@ -30,12 +34,17 @@ def _request(url: str, key: str, body: dict | None = None, timeout: int = 60) ->
         data=json.dumps(body).encode("utf-8") if body is not None else None,
         headers={"x-goog-api-key": key, "Content-Type": "application/json"},
     )
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        detail = e.read().decode("utf-8", "replace")[:1500]
-        raise RuntimeError(f"{url.split('?')[0]}: HTTP {e.code}: {detail}") from None
+    for delay in (*RETRY_DELAYS, None):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            detail = e.read().decode("utf-8", "replace")[:1500]
+            if e.code in (429, 500, 502, 503, 504) and delay is not None:
+                print(f"{url.split('?')[0]}: HTTP {e.code}, повтор через {delay} с", file=sys.stderr)
+                time.sleep(delay)
+                continue
+            raise RuntimeError(f"{url.split('?')[0]}: HTTP {e.code}: {detail}") from None
 
 
 def youtube_metadata(src: Source, key: str) -> None:
@@ -48,7 +57,7 @@ def youtube_metadata(src: Source, key: str) -> None:
     src.upload_date = snippet.get("publishedAt", "")[:10].replace("-", "")
 
 
-def gemini_transcript(video_id: str, key: str, model: str = GEMINI_MODEL) -> list[tuple[int, str]]:
+def gemini_transcript(video_id: str, key: str, models: list[str] = GEMINI_MODELS) -> list[tuple[int, str]]:
     body = {
         "contents": [{"parts": [
             {"file_data": {"file_uri": f"https://www.youtube.com/watch?v={video_id}"}},
@@ -57,17 +66,26 @@ def gemini_transcript(video_id: str, key: str, model: str = GEMINI_MODEL) -> lis
         # Для речи хватает низкого разрешения кадров: втрое меньше токенов, длинный выпуск влезает в бесплатный лимит
         "generationConfig": {"mediaResolution": "MEDIA_RESOLUTION_LOW", "maxOutputTokens": 65536, "temperature": 0},
     }
-    data = _request(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-                    key, body, timeout=900)
-    cand = (data.get("candidates") or [{}])[0]
-    parts = cand.get("content", {}).get("parts", [])
-    transcript = parse_timestamped_text("\n".join(p.get("text", "") for p in parts if not p.get("thought")))
-    if not transcript:
-        raise RuntimeError(f"Gemini не вернул транскрипт: finishReason={cand.get('finishReason')}, "
-                           f"promptFeedback={data.get('promptFeedback')}")
-    if cand.get("finishReason") == "MAX_TOKENS":
-        print("Внимание: транскрипт Gemini обрезан по лимиту длины ответа", file=sys.stderr)
-    return transcript
+    errors = []
+    for model in models:
+        try:
+            data = _request(f"https://generativelanguage.googleapis.com/v1beta/models/{model.strip()}:generateContent",
+                            key, body, timeout=900)
+        except RuntimeError as e:
+            errors.append(str(e))
+            print(f"Gemini {model}: {e}", file=sys.stderr)
+            continue
+        cand = (data.get("candidates") or [{}])[0]
+        parts = cand.get("content", {}).get("parts", [])
+        transcript = parse_timestamped_text("\n".join(p.get("text", "") for p in parts if not p.get("thought")))
+        if transcript:
+            if cand.get("finishReason") == "MAX_TOKENS":
+                print("Внимание: транскрипт Gemini обрезан по лимиту длины ответа", file=sys.stderr)
+            return transcript
+        # Ответ без самого текста: показываем его целиком (ключа в нём нет), иначе причину не найти
+        errors.append(f"{model}: ответ без транскрипта: {json.dumps(data, ensure_ascii=False)[:3000]}")
+        print(errors[-1], file=sys.stderr)
+    raise RuntimeError("Gemini не вернул транскрипт:\n" + "\n".join(errors))
 
 
 def fetch_google(url: str) -> Source:
