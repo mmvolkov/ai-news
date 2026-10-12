@@ -1,0 +1,26 @@
+name: AI-новости
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Ссылка на выпуск YouTube"
+        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: python -m ai_news "$VIDEO_URL"
+        env:
+          VIDEO_URL: ${{ inputs.url }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: issue
+          path: issues/
