@@ -128,9 +128,15 @@ python -m ai_news https://youtu.be/rc1MGVebM-4 --from-json issues/20261004_rc1MG
 агент сам клонирует этот репозиторий, запускает пайплайн и отдаёт пост, материалы и рилс. Без подписки Claude
 тексты пишет модель Hermes (`--prompt-only` → `issue.json` → `scripts/render_issue.py`).
 
+`hermes/skills/media/youtube-download/` — самостоятельный скилл загрузки с YouTube: метаданные, транскрипт
+с таймкодами, видео mp4, аудио m4a (`scripts/yt.py`). Если YouTube блокирует сервер, метаданные берутся
+из YouTube Data API, транскрипт — из Gemini.
+
 ```bash
-mkdir -p ~/.hermes/skills/media && cp -r hermes/skills/media/ai-news-digest ~/.hermes/skills/media/
+mkdir -p ~/.hermes/skills/media
+cp -r hermes/skills/media/ai-news-digest hermes/skills/media/youtube-download ~/.hermes/skills/media/
 hermes chat --toolsets skills -q "Сделай выпуск AI-новостей по https://youtu.be/<id>"
+hermes chat --toolsets skills -q "Скачай аудио и транскрипт https://youtu.be/<id>"
 ```
 
 ## Дальше
