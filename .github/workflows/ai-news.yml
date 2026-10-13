@@ -6,7 +6,7 @@ on:
         description: "Ссылка на выпуск YouTube"
         required: true
       reels:
-        description: "Сгенерировать рилс 9:16 через Veo (платно, ≈ $3 за ролик)"
+        description: "Сгенерировать рилс 9:16 через Veo (Flow2API — кредиты Flow; иначе Gemini API — ≈ $3)"
         type: boolean
         default: false
 
@@ -37,6 +37,9 @@ jobs:
           YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
           # Подписка Claude Pro/Max: токен из `claude setup-token`
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Рилс через свой сервер Flow2API (кредиты Google Flow); если не задан — через Gemini API
+          FLOW2API_URL: ${{ secrets.FLOW2API_URL }}
+          FLOW2API_KEY: ${{ secrets.FLOW2API_KEY }}
           # Veo платный: ключ из проекта Google Cloud с оплатой (без него — GEMINI_API_KEY)
           VEO_API_KEY: ${{ secrets.VEO_API_KEY }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}

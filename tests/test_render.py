@@ -147,3 +147,31 @@ def test_veo_generate_clip_polls_and_downloads(monkeypatch):
     monkeypatch.setattr(veo.time, "sleep", lambda _: None)
     assert veo.generate_clip("a cat", "k") == b"mp4"
     assert requests[1][0].endswith("/v1beta/models/veo/operations/op1") and len(requests) == 3
+
+
+def test_flow2api_parses_stream_and_errors(monkeypatch):
+    import io
+    import json
+
+    import pytest
+
+    from ai_news import veo
+
+    def sse(*chunks):
+        return io.BytesIO("".join(f"data: {json.dumps(c)}\n\n" for c in chunks).encode() + b"data: [DONE]\n\n")
+
+    progress = {"choices": [{"delta": {"reasoning_content": "50%"}}]}
+    done = {"choices": [{"delta": {"content": "<video src='https://cdn.example/v.mp4' controls></video>"},
+                         "finish_reason": "stop"}]}
+    responses = [sse(progress, done), io.BytesIO(b"mp4"), sse({"error": {"message": "no credits"}})]
+    seen = []
+
+    def fake_urlopen(req, timeout):
+        seen.append(getattr(req, "full_url", req))
+        return responses.pop(0)
+
+    monkeypatch.setattr(veo.urllib.request, "urlopen", fake_urlopen)
+    assert veo.generate_clip_flow2api("cat", "http://vm:8000/", "k") == b"mp4"
+    assert seen == ["http://vm:8000/v1/chat/completions", "https://cdn.example/v.mp4"]
+    with pytest.raises(RuntimeError, match="no credits"):
+        veo.generate_clip_flow2api("cat", "http://vm:8000", "k")
